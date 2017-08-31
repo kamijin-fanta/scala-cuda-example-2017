@@ -5,14 +5,11 @@ import javax.imageio.ImageIO
 import jcuda.driver._
 import jcuda.{Pointer, Sizeof}
 
-import scala.collection.immutable
-
-object Blur {
+object GrayScale {
   def main(args: Array[String]): Unit = {
     val image: BufferedImage = ImageIO.read(new File(getClass.getResource("ex.tif").toURI))
     val raster = image.getRaster.getDataBuffer.asInstanceOf[DataBufferByte]
-    val elems = (0 to 10).map(raster.getElem _)
-    println(raster.getData().length, s"${image.getWidth()}x${image.getHeight()} = ${image.getHeight()*image.getWidth()}")
+    println(s"Byte: ${raster.getData().length}  Resolution: ${image.getWidth()}x${image.getHeight()} = ${image.getHeight()*image.getWidth()}")
 
     val deviceInput = new CUdeviceptr
     val deviceOutput = new CUdeviceptr
@@ -47,37 +44,19 @@ object Blur {
       println(s"ptx: ${path}")
       JCudaDriver.cuModuleLoad(module, path)
       val function = new CUfunction
-      JCudaDriver.cuModuleGetFunction(function, module, "Blur2Kernel")
+      JCudaDriver.cuModuleGetFunction(function, module, "RGBToYKernel")
 
+      val kernelParameters: Pointer = Pointer.to(
+        Pointer.to(deviceInput),
+        Pointer.to(deviceOutput),
+        Pointer.to(Array[Int](width)),
+        Pointer.to(Array[Int](height))
+      )
 
-      val genOpacityMap = (round: Int) => for {
-        y <- (-round to round)
-        x <- (-round to round)
-      } yield (x, y, Math.max((round - Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2))) / round, 0))
-      val opacityTable: Seq[(Int, Int, Double)] = genOpacityMap(1)
-      val totalOpacity = opacityTable.map(_._3).sum
-
-      def runKernel(xOffset: Int, yOffset: Int, opacity: Double) = {
-        val kernelParameters: Pointer = Pointer.to(
-          Pointer.to(deviceInput),
-          Pointer.to(deviceOutput),
-          Pointer.to(Array[Int](width)),
-          Pointer.to(Array[Int](height)),
-          Pointer.to(Array[Int](xOffset)),
-          Pointer.to(Array[Int](yOffset)),
-          Pointer.to(Array[Double](opacity))
-        )
-
-        val blockSize = 16
-        val gridSize = Math.ceil(totalPixcel / blockSize).toInt
-        JCudaDriver.cuLaunchKernel(function, gridSize, 1, 1, blockSize, 1, 1, 0, null, kernelParameters, null)
-        JCudaDriver.cuCtxSynchronize
-      }
-
-      opacityTable.foreach {
-        case (x, y, o) => runKernel(x, y, o / totalOpacity)
-      }
-
+      val blockSize = 32
+      val gridSize = Math.ceil(totalPixcel / blockSize).toInt
+      JCudaDriver.cuLaunchKernel(function, gridSize, 1, 1, blockSize, 1, 1, 0, null, kernelParameters, null)
+      JCudaDriver.cuCtxSynchronize
 
       val hostOutput = new Array[Byte](hostInputSize)
       JCudaDriver.cuMemcpyDtoH(Pointer.to(hostOutput), deviceOutput, hostInput.length)

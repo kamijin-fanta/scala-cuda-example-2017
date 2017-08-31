@@ -11,8 +11,6 @@
 .address_size 64
 
 	// .globl	add
-.const .align 4 .u32 TABLE_LEN;
-.const .align 1 .b8 TABLE[500];
 
 .visible .entry add(
 	.param .u32 add_param_0,
@@ -59,31 +57,29 @@ BB0_2:
 	.param .u64 RGBToYKernel_param_0,
 	.param .u64 RGBToYKernel_param_1,
 	.param .u32 RGBToYKernel_param_2,
-	.param .u32 RGBToYKernel_param_3,
-	.param .u32 RGBToYKernel_param_4
+	.param .u32 RGBToYKernel_param_3
 )
 {
 	.reg .pred 	%p<4>;
-	.reg .b16 	%rs<5>;
-	.reg .b32 	%r<14>;
-	.reg .b64 	%rd<8>;
+	.reg .b32 	%r<24>;
+	.reg .f64 	%fd<7>;
+	.reg .b64 	%rd<11>;
 
 
 	ld.param.u64 	%rd1, [RGBToYKernel_param_0];
 	ld.param.u64 	%rd2, [RGBToYKernel_param_1];
-	ld.param.u32 	%r4, [RGBToYKernel_param_2];
-	ld.param.u32 	%r5, [RGBToYKernel_param_3];
-	ld.param.u32 	%r3, [RGBToYKernel_param_4];
-	mov.u32 	%r6, %ctaid.x;
-	mov.u32 	%r7, %ntid.x;
-	mov.u32 	%r8, %tid.x;
-	mad.lo.s32 	%r1, %r6, %r7, %r8;
-	mov.u32 	%r9, %ctaid.y;
-	mov.u32 	%r10, %ntid.y;
-	mov.u32 	%r11, %tid.y;
-	mad.lo.s32 	%r2, %r9, %r10, %r11;
-	setp.lt.s32	%p1, %r1, %r4;
-	setp.lt.s32	%p2, %r2, %r5;
+	ld.param.u32 	%r3, [RGBToYKernel_param_2];
+	ld.param.u32 	%r4, [RGBToYKernel_param_3];
+	mov.u32 	%r5, %ctaid.x;
+	mov.u32 	%r6, %ntid.x;
+	mov.u32 	%r7, %tid.x;
+	mad.lo.s32 	%r8, %r5, %r6, %r7;
+	rem.s32 	%r1, %r8, %r3;
+	div.s32 	%r2, %r8, %r3;
+	or.b32  	%r9, %r1, %r3;
+	or.b32  	%r10, %r9, %r2;
+	setp.gt.s32	%p1, %r10, -1;
+	setp.le.s32	%p2, %r2, %r4;
 	and.pred  	%p3, %p1, %p2;
 	@!%p3 bra 	BB1_2;
 	bra.uni 	BB1_1;
@@ -91,190 +87,36 @@ BB0_2:
 BB1_1:
 	cvta.to.global.u64 	%rd3, %rd2;
 	cvta.to.global.u64 	%rd4, %rd1;
-	mul.lo.s32 	%r12, %r1, 3;
-	mad.lo.s32 	%r13, %r2, %r3, %r12;
-	cvt.s64.s32	%rd5, %r13;
+	mad.lo.s32 	%r11, %r2, %r3, %r1;
+	mul.lo.s32 	%r12, %r11, 3;
+	cvt.s64.s32	%rd5, %r12;
 	add.s64 	%rd6, %rd4, %rd5;
-	ld.global.u8 	%rs1, [%rd6];
-	add.s64 	%rd7, %rd3, %rd5;
-	st.global.u8 	[%rd7], %rs1;
-	ld.global.u8 	%rs2, [%rd6+1];
-	st.global.u8 	[%rd7+1], %rs2;
-	ld.global.u8 	%rs3, [%rd6+2];
-	shr.u16 	%rs4, %rs3, 1;
-	st.global.u8 	[%rd7+2], %rs4;
+	ld.global.u8 	%r13, [%rd6];
+	add.s32 	%r14, %r12, 1;
+	cvt.s64.s32	%rd7, %r14;
+	add.s64 	%rd8, %rd4, %rd7;
+	ld.global.u8 	%r15, [%rd8];
+	ld.global.u8 	%r16, [%rd8+1];
+	cvt.rn.f64.s32	%fd1, %r13;
+	cvt.rn.f64.s32	%fd2, %r15;
+	mul.f64 	%fd3, %fd2, 0d3FE2C8B439581062;
+	fma.rn.f64 	%fd4, %fd1, 0d3FD322D0E5604189, %fd3;
+	cvt.rn.f64.s32	%fd5, %r16;
+	fma.rn.f64 	%fd6, %fd5, 0d3FBD2F1A9FBE76C9, %fd4;
+	cvt.rzi.s32.f64	%r17, %fd6;
+	add.s64 	%rd9, %rd3, %rd5;
+	ld.global.u8 	%r18, [%rd9];
+	add.s32 	%r19, %r18, %r17;
+	st.global.u8 	[%rd9], %r19;
+	add.s64 	%rd10, %rd3, %rd7;
+	ld.global.u8 	%r20, [%rd10];
+	add.s32 	%r21, %r20, %r17;
+	ld.global.u8 	%r22, [%rd10+1];
+	st.global.u8 	[%rd10], %r21;
+	add.s32 	%r23, %r22, %r17;
+	st.global.u8 	[%rd10+1], %r23;
 
 BB1_2:
-	ret;
-}
-
-	// .globl	BlurKernel
-.visible .entry BlurKernel(
-	.param .u64 BlurKernel_param_0,
-	.param .u64 BlurKernel_param_1,
-	.param .u32 BlurKernel_param_2,
-	.param .u32 BlurKernel_param_3,
-	.param .u32 BlurKernel_param_4
-)
-{
-	.reg .pred 	%p<15>;
-	.reg .b32 	%r<35>;
-	.reg .f64 	%fd<5>;
-	.reg .b64 	%rd<8>;
-
-
-	ld.param.u64 	%rd4, [BlurKernel_param_0];
-	ld.param.u64 	%rd3, [BlurKernel_param_1];
-	ld.param.u32 	%r11, [BlurKernel_param_2];
-	ld.param.u32 	%r12, [BlurKernel_param_3];
-	ld.param.u32 	%r15, [BlurKernel_param_4];
-	mov.u32 	%r16, %ctaid.x;
-	mov.u32 	%r17, %ntid.x;
-	mov.u32 	%r18, %tid.x;
-	mad.lo.s32 	%r1, %r16, %r17, %r18;
-	mov.u32 	%r19, %ctaid.y;
-	mov.u32 	%r20, %ntid.y;
-	mov.u32 	%r21, %tid.y;
-	mad.lo.s32 	%r2, %r19, %r20, %r21;
-	mul.lo.s32 	%r22, %r1, 3;
-	mad.lo.s32 	%r23, %r2, %r15, %r22;
-	cvt.s64.s32	%rd1, %r23;
-	cvta.to.global.u64 	%rd5, %rd4;
-	add.s64 	%rd2, %rd5, %rd1;
-	ld.const.s8 	%r24, [TABLE];
-	add.s32 	%r25, %r24, %r1;
-	ld.const.s8 	%r3, [TABLE+1];
-	add.s32 	%r26, %r3, %r2;
-	setp.gt.s32	%p1, %r25, -1;
-	setp.lt.s32	%p2, %r25, %r11;
-	and.pred  	%p3, %p1, %p2;
-	setp.gt.s32	%p4, %r26, -1;
-	and.pred  	%p5, %p3, %p4;
-	setp.lt.s32	%p6, %r26, %r12;
-	and.pred  	%p7, %p5, %p6;
-	mov.u32 	%r34, 0;
-	mov.u32 	%r33, 50;
-	@!%p7 bra 	BB2_2;
-	bra.uni 	BB2_1;
-
-BB2_1:
-	ld.global.u8 	%r34, [%rd2];
-	mov.u32 	%r33, 305;
-
-BB2_2:
-	ld.const.s8 	%r28, [TABLE+2];
-	add.s32 	%r29, %r28, %r2;
-	add.s32 	%r30, %r3, %r1;
-	setp.gt.s32	%p8, %r30, -1;
-	setp.lt.s32	%p9, %r30, %r11;
-	and.pred  	%p10, %p8, %p9;
-	setp.gt.s32	%p11, %r29, -1;
-	and.pred  	%p12, %p10, %p11;
-	setp.lt.s32	%p13, %r29, %r12;
-	and.pred  	%p14, %p12, %p13;
-	@!%p14 bra 	BB2_4;
-	bra.uni 	BB2_3;
-
-BB2_3:
-	add.s32 	%r33, %r33, 255;
-	ld.global.u8 	%r31, [%rd2];
-	add.s32 	%r34, %r31, %r34;
-
-BB2_4:
-	cvta.to.global.u64 	%rd6, %rd3;
-	cvt.rn.f64.u32	%fd1, %r33;
-	div.rn.f64 	%fd2, %fd1, 0d406FE00000000000;
-	cvt.rn.f64.u32	%fd3, %r34;
-	div.rn.f64 	%fd4, %fd3, %fd2;
-	cvt.rzi.u32.f64	%r32, %fd4;
-	add.s64 	%rd7, %rd6, %rd1;
-	st.global.u8 	[%rd7], %r32;
-	ret;
-}
-
-	// .globl	Blur2Kernel
-.visible .entry Blur2Kernel(
-	.param .u64 Blur2Kernel_param_0,
-	.param .u64 Blur2Kernel_param_1,
-	.param .u32 Blur2Kernel_param_2,
-	.param .u32 Blur2Kernel_param_3,
-	.param .u32 Blur2Kernel_param_4,
-	.param .u32 Blur2Kernel_param_5,
-	.param .f64 Blur2Kernel_param_6
-)
-{
-	.reg .pred 	%p<8>;
-	.reg .b16 	%rs<7>;
-	.reg .b32 	%r<22>;
-	.reg .f64 	%fd<11>;
-	.reg .b64 	%rd<13>;
-
-
-	ld.param.u64 	%rd1, [Blur2Kernel_param_0];
-	ld.param.u64 	%rd2, [Blur2Kernel_param_1];
-	ld.param.u32 	%r5, [Blur2Kernel_param_2];
-	ld.param.u32 	%r6, [Blur2Kernel_param_3];
-	ld.param.u32 	%r7, [Blur2Kernel_param_4];
-	ld.param.u32 	%r8, [Blur2Kernel_param_5];
-	ld.param.f64 	%fd1, [Blur2Kernel_param_6];
-	mov.u32 	%r9, %ctaid.x;
-	mov.u32 	%r10, %ntid.x;
-	mov.u32 	%r11, %tid.x;
-	mad.lo.s32 	%r12, %r9, %r10, %r11;
-	rem.s32 	%r1, %r12, %r5;
-	div.s32 	%r2, %r12, %r5;
-	sub.s32 	%r3, %r1, %r7;
-	sub.s32 	%r4, %r2, %r8;
-	setp.gt.s32	%p1, %r3, -1;
-	setp.le.s32	%p2, %r3, %r5;
-	and.pred  	%p3, %p1, %p2;
-	setp.gt.s32	%p4, %r4, -1;
-	and.pred  	%p5, %p3, %p4;
-	setp.le.s32	%p6, %r4, %r6;
-	and.pred  	%p7, %p5, %p6;
-	@!%p7 bra 	BB3_2;
-	bra.uni 	BB3_1;
-
-BB3_1:
-	cvta.to.global.u64 	%rd3, %rd2;
-	cvta.to.global.u64 	%rd4, %rd1;
-	mad.lo.s32 	%r13, %r4, %r5, %r3;
-	mul.lo.s32 	%r14, %r13, 3;
-	mad.lo.s32 	%r15, %r2, %r5, %r1;
-	mul.lo.s32 	%r16, %r15, 3;
-	cvt.s64.s32	%rd5, %r14;
-	add.s64 	%rd6, %rd4, %rd5;
-	ld.global.u8 	%r17, [%rd6];
-	add.s32 	%r18, %r14, 1;
-	cvt.s64.s32	%rd7, %r18;
-	add.s64 	%rd8, %rd4, %rd7;
-	ld.global.u8 	%r19, [%rd8];
-	ld.global.u8 	%r20, [%rd8+1];
-	cvt.rn.f64.s32	%fd2, %r17;
-	cvt.s64.s32	%rd9, %r16;
-	add.s64 	%rd10, %rd3, %rd9;
-	ld.global.u8 	%rs1, [%rd10];
-	cvt.rn.f64.u16	%fd3, %rs1;
-	fma.rn.f64 	%fd4, %fd2, %fd1, %fd3;
-	cvt.rzi.u16.f64	%rs2, %fd4;
-	st.global.u8 	[%rd10], %rs2;
-	cvt.rn.f64.s32	%fd5, %r19;
-	add.s32 	%r21, %r16, 1;
-	cvt.s64.s32	%rd11, %r21;
-	add.s64 	%rd12, %rd3, %rd11;
-	ld.global.u8 	%rs3, [%rd12];
-	cvt.rn.f64.u16	%fd6, %rs3;
-	fma.rn.f64 	%fd7, %fd5, %fd1, %fd6;
-	cvt.rzi.u16.f64	%rs4, %fd7;
-	ld.global.u8 	%rs5, [%rd12+1];
-	st.global.u8 	[%rd12], %rs4;
-	cvt.rn.f64.s32	%fd8, %r20;
-	cvt.rn.f64.u16	%fd9, %rs5;
-	fma.rn.f64 	%fd10, %fd8, %fd1, %fd9;
-	cvt.rzi.u16.f64	%rs6, %fd10;
-	st.global.u8 	[%rd12+1], %rs6;
-
-BB3_2:
 	ret;
 }
 
